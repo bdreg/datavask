@@ -201,34 +201,134 @@ hr {
 </head>
 
 <body>
-<pre><code class="r">## Diabetes ketoacidose (DKA)
+<pre><code class="r">## nasjonalitet og kjønn
+</code></pre>
 
-## Datakilde
-lokalDT &lt;- lok2018dt1
+<pre><code class="r">nordLand &lt;- c(&quot;Norge&quot;, &quot;Danmark&quot;, &quot;Finland&quot;, &quot;Sverige&quot;, &quot;Island&quot;)
+
+## Data kilder
+nasDT &lt;- lok2018dt1
+
+nasDT[!is.na(fodelandMor) , nordiskMor := ifelse(fodelandMor %in% nordLand, 1L, 0L)]
+nasDT[!is.na(fodelandFar) , nordiskFar := ifelse(fodelandFar %in% nordLand, 1L, 0L)]
+
+## nordisk barn
+## Minst en av foreldrene er født i de nordiske landene
+## nasDT[, .N, by=.(nordiskFar)]
+
+nordBarn &lt;- nasDT[, {mor = ifelse(is.na(nordiskMor), 0, nordiskMor);
+  far = ifelse(is.na(nordiskFar), 0, nordiskFar);
+  barn = mor + far;
+  nordiskBarn = ifelse(is.na(nordiskMor) &amp; is.na(nordiskFar), NA, barn);
+  list(barn = barn,
+    nordiskBarn = nordiskBarn,
+    mor = nordiskMor,
+    far = nordiskFar,
+    kjonn = Kjonn,
+    PasientID = PasientID
+  )}]
+
+nordBarn[.(nordiskBarn = 1:2, to = 1), on = &quot;nordiskBarn&quot;, nordiskBarn := i.to]
+# nordBarn[nordiskBarn %in% 1:2, nordiskBarn := 1]
+
+# ukjent nasjonalitet
+nordBarn[is.na(nordiskBarn), nordiskBarn := 3]
 
 ## Aggrigerer
-dkaTab &lt;- groupingsets(lokalDT,
-  j = .(N = sum(!is.na(und_ketoacidose)),
-       ja = length(which(und_ketoacidose == &quot;Ja&quot;))),
-  by = c(&quot;agecat&quot;, &quot;agekat&quot;),
-  sets = list(c(&quot;agecat&quot;, &quot;agekat&quot;), character(0))
-)
+nasAgg &lt;- groupingsets(nordBarn,
+  j = .(
+    nordisk = length(which(nordiskBarn == 1)),
+    ikke = length(which(nordiskBarn == 0)),
+    ukjent = length(which(nordiskBarn == 3))
+  ),
+  by = c(&quot;kjonn&quot;),
+  sets = list(
+    c(&quot;kjonn&quot;),
+    character(0)
+  ))
 
-dkaTab[, pros := as.character(round(ja / N * 100, digits = 1))]
-dkaTab[ja == 0, pros := &quot;- &quot;]
-dkaTab[is.na(agecat), agecat := &quot;Totalt&quot;]
+## Totalt
+nasAgg[is.na(kjonn), kjonn := &quot;Totalt&quot;]
+nasAgg[, N := rowSums(nasAgg[, -1])]
 
-## lager id til sortering
-dkaTab[is.na(agekat), agekat := nrow(dkaTab) * 2] #gir høyeste tall så det ligger altid nedest
-setorder(dkaTab, agekat) #reorder rows
+## Prosent
+nasAgg[, `:=`(
+  npro = round(nordisk / N * 100, digits = 1),
+  ipro = round(ikke / N * 100, digits = 1),
+  upro = round(ukjent / N * 100, digits = 1)
+),
+by = .(kjonn)]
 
-## Justeringer
-dkaTab[, agekat := NULL]
-setcolorder(dkaTab, c(&quot;agecat&quot;, &quot;ja&quot;, &quot;pros&quot;, &quot;N&quot;))
-setnames(dkaTab, names(dkaTab), c(&quot;Alder kategorier&quot;, &quot;Antall&quot;, &quot;Andel&quot;, &quot;N&quot;))
+## Mix antall og prosent
+nasAgg[, `:=`(
+  nord_N = sprintf(&quot;%s (%0.1f%%)&quot;, nordisk, npro),
+  ikke_N = sprintf(&quot;%s (%0.1f%%)&quot;, ikke, ipro),
+  ukjent_N = sprintf(&quot;%s (%0.1f%%)&quot;, ukjent, upro)
+),
+by = .(kjonn)]
 
-## Tabell
-dkaTabell &lt;- tabFun(dkaTab, &quot;Har hatt ketoacidose&quot;, total = TRUE)
+## Hvis 0 så byttes med strek
+nasAgg[nordisk == 0, nord_N := &quot;-&quot;]
+nasAgg[ikke == 0, ikke_N := &quot;-&quot;]
+nasAgg[ukjent == 0, ukjent_N := &quot;-&quot;]
+
+
+## Beholder det relevante
+bortVar &lt;- c(&quot;nordisk&quot;, &quot;ikke&quot;, &quot;ukjent&quot;, &quot;npro&quot;, &quot;ipro&quot;, &quot;upro&quot;)
+nasAgg[,(bortVar) := NULL ]
+
+## ## bytt NA med strekk
+## for (j in seq_len(ncol(nasAgg))){
+##   set(nasAgg, which(is.na(nasAgg[[j]])), j = j, value = &quot;  -&quot;)
+## }
+
+## Sjekk antall kolonner fordi ikke alle har annen nasjonaltitet
+colN &lt;- ncol(nasAgg)
+colNavn &lt;- names(nasAgg)
+kol1 &lt;- grep(&quot;kjonn&quot;, colNavn, value = T)
+koln &lt;- grep(&quot;^N&quot;, colNavn, value = T)
+kol2 &lt;- grep(&quot;nord&quot;, colNavn, value = T)
+kol3 &lt;- grep(&quot;ikke&quot;, colNavn, value = T)
+kol4 &lt;- grep(&quot;ukjent&quot;, colNavn, value = T)
+
+barnWt &lt;- nasAgg
+
+## Kjønn skal være fleretall
+barnWt[.(kjonn = c(&quot;Gutt&quot;, &quot;Jente&quot;), to = c(&quot;Gutter&quot;, &quot;Jenter&quot;)), on = &quot;kjonn&quot;, kjonn := i.to]
+
+
+if (colN == 5) {
+  ## reorder columns
+  setcolorder(barnWt, c(kol1, koln, kol2, kol3, kol4))
+
+  ## legger riktig colnavn
+  setnames(barnWt, names(barnWt), c(&quot;kjonn&quot;, &quot;N&quot;, &quot;Nordisk&quot;, &quot;Ikke Nordisk&quot;, &quot;Ukjent&quot;))
+}
+
+if (colN == 4){
+  ## reorder columns
+  setcolorder(barnWt, c(kol1, koln, kol2, kol3))
+
+  ## legger riktig colnavn
+  setnames(barnWt, names(barnWt), c(&quot;kjonn&quot;, &quot;N&quot;, &quot;Nordisk&quot;, &quot;Ikke Nordisk&quot;))
+
+}
+
+if (colN == 3){
+  ## reorder columns
+  setcolorder(barnWt, c(kol1, koln, kol2))
+
+  ## legger riktig colnavn
+  setnames(barnWt, names(barnWt), c(&quot;kjonn&quot;,&quot;N&quot;, &quot;Nordisk&quot;))
+}
+
+setnames(barnWt, &quot;kjonn&quot;, &quot;&quot;)
+barnWt[, N := as.character(N)] #problem med tall vises som scientific format
+
+## utTabell &lt;- tabHux(barnWt, total = TRUE, del = c(.1, .15, .22, .22, .22), autoformat = TRUE)
+
+utTabell &lt;- tabFunx(barnWt, total = TRUE, navn = &quot;n (%)&quot;,
+  del = c(.1, .15, .22, .22, .22), mix = 3:5, center = 3)
 </code></pre>
 
 </body>

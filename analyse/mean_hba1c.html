@@ -207,71 +207,33 @@ hr {
 <pre><code class="r">## ## Datakilder
 ## gamle data &quot;bdrB4&quot; uploaded fra runEnkelRapport
 bdrold &lt;- subset(bdrB4, select = c(&quot;hba1c&quot;, &quot;yr&quot;, &quot;hospid&quot;, &quot;age&quot;, &quot;gender&quot;))
-</code></pre>
 
-<pre><code>## Error in subset(bdrB4, select = c(&quot;hba1c&quot;, &quot;yr&quot;, &quot;hospid&quot;, &quot;age&quot;, &quot;gender&quot;)): object &#39;bdrB4&#39; not found
-</code></pre>
-
-<pre><code class="r">## Nasjonal data brukes
+## Nasjonal data brukes
 norgeDT &lt;- ars2018dt1
-</code></pre>
 
-<pre><code>## Error in eval(expr, envir, enclos): object &#39;ars2018dt1&#39; not found
-</code></pre>
-
-<pre><code class="r">## Antall pasienter
+## Antall pasienter
 norgeN &lt;- nrow(norgeDT)
-</code></pre>
 
-<pre><code>## Error in nrow(norgeDT): object &#39;norgeDT&#39; not found
-</code></pre>
 
-<pre><code class="r">## Utvalg av variabler
+## Utvalg av variabler
 </code></pre>
 
 <pre><code class="r">valgVar &lt;- c(&quot;lab_HbA1cAkerVerdi&quot;, &quot;Kjonn&quot;, &quot;yr&quot;, &quot;hospID&quot;, &quot;alder&quot;)
 ## norgeDT[, str(.SD), .SDcols = valgVar]
 
 valgDT &lt;- subset(norgeDT, select = valgVar)
-</code></pre>
+valgDT[.(Kjonn = c(&quot;Gutt&quot;, &quot;Jente&quot;), to = 1:2), on = &quot;Kjonn&quot;, gender := i.to]
+valgDT[, Kjonn := NULL]
 
-<pre><code>## Error in subset(norgeDT, select = valgVar): object &#39;norgeDT&#39; not found
-</code></pre>
-
-<pre><code class="r">valgDT[.(Kjonn = c(&quot;Gutt&quot;, &quot;Jente&quot;), to = 1:2), on = &quot;Kjonn&quot;, gender := i.to]
-</code></pre>
-
-<pre><code>## Error in eval(expr, envir, enclos): object &#39;valgDT&#39; not found
-</code></pre>
-
-<pre><code class="r">valgDT[, Kjonn := NULL]
-</code></pre>
-
-<pre><code>## Error in eval(expr, envir, enclos): object &#39;valgDT&#39; not found
-</code></pre>
-
-<pre><code class="r">## gir standard navn
+## gir standard navn
 stdNavn &lt;- c(&quot;hba1c&quot;, &quot;yr&quot;, &quot;hospid&quot;, &quot;alder&quot;, &quot;kjonn&quot;)
 setnames(valgDT, names(valgDT), stdNavn)
-</code></pre>
+setnames(bdrold, names(bdrold), stdNavn)
 
-<pre><code>## Error in setnames(valgDT, names(valgDT), stdNavn): could not find function &quot;setnames&quot;
-</code></pre>
-
-<pre><code class="r">setnames(bdrold, names(bdrold), stdNavn)
-</code></pre>
-
-<pre><code>## Error in setnames(bdrold, names(bdrold), stdNavn): could not find function &quot;setnames&quot;
-</code></pre>
-
-<pre><code class="r">## Merge begge
+## Merge begge
 alldt &lt;- rbindlist(list(bdrold, valgDT), use.names = TRUE)
-</code></pre>
 
-<pre><code>## Error in rbindlist(list(bdrold, valgDT), use.names = TRUE): could not find function &quot;rbindlist&quot;
-</code></pre>
-
-<pre><code class="r">## ## Lage file til raskere upload
+## ## Lage file til raskere upload
 ## saveRDS(alldt, file.path(dataSti, &quot;all07til18.rds&quot;))
 
 
@@ -282,45 +244,25 @@ alldt &lt;- rbindlist(list(bdrold, valgDT), use.names = TRUE)
 
 ## Tar bort attributes inherits fra SPSS
 alldt[] &lt;- lapply(alldt, function(x) {attributes(x) &lt;- NULL; x})
-</code></pre>
 
-<pre><code>## Error in lapply(alldt, function(x) {: object &#39;alldt&#39; not found
-</code></pre>
-
-<pre><code class="r">## mean hba1c for hvert år
+## mean hba1c for hvert år
 alldt[, meanAll := round(mean(hba1c, na.rm = TRUE), digits = 1), keyby = .(yr)]
-</code></pre>
 
-<pre><code>## Error in eval(expr, envir, enclos): object &#39;alldt&#39; not found
-</code></pre>
-
-<pre><code class="r">## mean hba1c for all years hver sykehus
+## mean hba1c for all years hver sykehus
 ## alldt[, meanhbc := round(mean(hba1c, na.rm = TRUE), digits = 1), keyby = .(yr, hospid)]
 
 ## Beholder bare en rad på hvert år
 norgeTab &lt;- alldt[alldt[, .I[1], by = yr]$V1]
-</code></pre>
+norgeTab[, yr := as.numeric(yr)]
 
-<pre><code>## Error in eval(expr, envir, enclos): object &#39;alldt&#39; not found
-</code></pre>
 
-<pre><code class="r">norgeTab[, yr := as.numeric(yr)]
-</code></pre>
-
-<pre><code>## Error in eval(expr, envir, enclos): object &#39;norgeTab&#39; not found
-</code></pre>
-
-<pre><code class="r">## Velge Lokal sykehus
+## Velge Lokal sykehus
 </code></pre>
 
 <pre><code class="r">## subset fra loop data
 dtvalg &lt;- subset(alldt, hospid == hosp)
-</code></pre>
 
-<pre><code>## Error in subset(alldt, hospid == hosp): object &#39;alldt&#39; not found
-</code></pre>
-
-<pre><code class="r">## gjennomsnitt hba1c
+## gjennomsnitt hba1c
 ## dtvalg[, meanhbc  := round(mean(hba1c, na.rm = TRUE), digits = 1), by = yr]
 
 ## antall per år
@@ -336,52 +278,28 @@ dbaggr &lt;- rollup(dtvalg,
     hba = mean(hba1c, na.rm = TRUE),
     n = .N),
   by = c(&quot;yr&quot;, &quot;kjonn&quot;))
-</code></pre>
 
-<pre><code>## Error in rollup(dtvalg, j = list(hba = mean(hba1c, na.rm = TRUE), n = .N), : could not find function &quot;rollup&quot;
-</code></pre>
-
-<pre><code class="r">## legger totallen dvs. 3. Kjønn er søm flgende:
+## legger totallen dvs. 3. Kjønn er søm flgende:
 ## 1 = Gutter
 ## 2 = Jenter
 ## 3 = Totalt
 dbaggr[is.na(kjonn), kjonn := 3]
-</code></pre>
+dbaggr[.(kjonn = 1:3, to = c(&quot;Gutter&quot;, &quot;Jenter&quot;, &quot;Alle&quot;)), on = &quot;kjonn&quot;, sex := i.to]
 
-<pre><code>## Error in eval(expr, envir, enclos): object &#39;dbaggr&#39; not found
-</code></pre>
-
-<pre><code class="r">dbaggr[.(kjonn = 1:3, to = c(&quot;Gutter&quot;, &quot;Jenter&quot;, &quot;Alle&quot;)), on = &quot;kjonn&quot;, sex := i.to]
-</code></pre>
-
-<pre><code>## Error in eval(expr, envir, enclos): object &#39;dbaggr&#39; not found
-</code></pre>
-
-<pre><code class="r">## tar bort Grand Total
+## tar bort Grand Total
 dbaggr &lt;- dbaggr[!is.na(yr), ]
-</code></pre>
 
-<pre><code>## Error in eval(expr, envir, enclos): object &#39;dbaggr&#39; not found
-</code></pre>
-
-<pre><code class="r">## konverterer yr til nummeric ellers må bruke group=1
+## konverterer yr til nummeric ellers må bruke group=1
 dbaggr[, yr := as.numeric(yr)]
-</code></pre>
 
-<pre><code>## Error in eval(expr, envir, enclos): object &#39;dbaggr&#39; not found
-</code></pre>
 
-<pre><code class="r">## Plotting
+## Plotting
 </code></pre>
 
 <pre><code class="r">## Farge
 col3 &lt;- valgCol[1:3]
-</code></pre>
 
-<pre><code>## Error in eval(expr, envir, enclos): object &#39;valgCol&#39; not found
-</code></pre>
-
-<pre><code class="r">## Theme
+## Theme
 ptheme &lt;- theme(legend.title = element_blank(),
   legend.text = element_text(size = 9),
   legend.key = element_rect(fill = &quot;white&quot;),
@@ -395,30 +313,12 @@ ptheme &lt;- theme(legend.title = element_blank(),
   panel.border = element_rect(linetype = 1, fill = NA, color = &quot;white&quot;),
   panel.grid.minor.x = element_blank(),
   panel.grid.major.y = element_line(linetype = 2, color = &quot;grey&quot;))
-</code></pre>
 
-<pre><code>## Error in theme(legend.title = element_blank(), legend.text = element_text(size = 9), : could not find function &quot;theme&quot;
-</code></pre>
+miny &lt;- round(min(dbaggr$hba, na.rm = TRUE), digits = 1)
+maxy &lt;- round(max(dbaggr$hba, na.rm = TRUE), digits = 1)
+exty &lt;- (maxy - miny) * .2
 
-<pre><code class="r">miny &lt;- round(min(dbaggr$hba, na.rm = TRUE), digits = 1)
-</code></pre>
-
-<pre><code>## Error in eval(expr, envir, enclos): object &#39;dbaggr&#39; not found
-</code></pre>
-
-<pre><code class="r">maxy &lt;- round(max(dbaggr$hba, na.rm = TRUE), digits = 1)
-</code></pre>
-
-<pre><code>## Error in eval(expr, envir, enclos): object &#39;dbaggr&#39; not found
-</code></pre>
-
-<pre><code class="r">exty &lt;- (maxy - miny) * .2
-</code></pre>
-
-<pre><code>## Error in eval(expr, envir, enclos): object &#39;maxy&#39; not found
-</code></pre>
-
-<pre><code class="r">plotHbc &lt;- ggplot() +
+plotHbc &lt;- ggplot() +
   ## linje skal ikke kuttes hvis det er NA
   geom_line(data = dbaggr[!is.na(hba), ],
     aes(yr, hba, group = sex, color = sex), size = 1) +
@@ -435,51 +335,15 @@ ptheme &lt;- theme(legend.title = element_blank(),
   ylab(&quot;HbA1c verdi i %&quot;) +
   xlab(&quot; &quot;) +
   ptheme
-</code></pre>
 
-<pre><code>## Error in ggplot(): could not find function &quot;ggplot&quot;
-</code></pre>
 
-<pre><code class="r">guttHb &lt;- round(dbaggr[yr == 2018 &amp; kjonn == 1, hba], digits = 1)
-</code></pre>
-
-<pre><code>## Error in eval(expr, envir, enclos): object &#39;dbaggr&#39; not found
-</code></pre>
-
-<pre><code class="r">guttN &lt;- round(dbaggr[yr == 2018 &amp; kjonn == 1, n])
-</code></pre>
-
-<pre><code>## Error in eval(expr, envir, enclos): object &#39;dbaggr&#39; not found
-</code></pre>
-
-<pre><code class="r">jenteHb &lt;- round(dbaggr[yr == 2018 &amp; kjonn == 2, hba], digits = 1)
-</code></pre>
-
-<pre><code>## Error in eval(expr, envir, enclos): object &#39;dbaggr&#39; not found
-</code></pre>
-
-<pre><code class="r">jenteN &lt;- round(dbaggr[yr == 2018 &amp; kjonn == 2, n])
-</code></pre>
-
-<pre><code>## Error in eval(expr, envir, enclos): object &#39;dbaggr&#39; not found
-</code></pre>
-
-<pre><code class="r">alleHb &lt;- round(dbaggr[yr == 2018 &amp; kjonn == 3, hba], digits = 1)
-</code></pre>
-
-<pre><code>## Error in eval(expr, envir, enclos): object &#39;dbaggr&#39; not found
-</code></pre>
-
-<pre><code class="r">alleN &lt;- round(dbaggr[yr == 2018 &amp; kjonn == 3, n])
-</code></pre>
-
-<pre><code>## Error in eval(expr, envir, enclos): object &#39;dbaggr&#39; not found
-</code></pre>
-
-<pre><code class="r">norgeHb &lt;- round(norgeTab[yr == 2018, meanAll], digits = 1)
-</code></pre>
-
-<pre><code>## Error in eval(expr, envir, enclos): object &#39;norgeTab&#39; not found
+guttHb &lt;- round(dbaggr[yr == 2018 &amp; kjonn == 1, hba], digits = 1)
+guttN &lt;- round(dbaggr[yr == 2018 &amp; kjonn == 1, n])
+jenteHb &lt;- round(dbaggr[yr == 2018 &amp; kjonn == 2, hba], digits = 1)
+jenteN &lt;- round(dbaggr[yr == 2018 &amp; kjonn == 2, n])
+alleHb &lt;- round(dbaggr[yr == 2018 &amp; kjonn == 3, hba], digits = 1)
+alleN &lt;- round(dbaggr[yr == 2018 &amp; kjonn == 3, n])
+norgeHb &lt;- round(norgeTab[yr == 2018, meanAll], digits = 1)
 </code></pre>
 
 </body>

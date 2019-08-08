@@ -201,34 +201,45 @@ hr {
 </head>
 
 <body>
-<pre><code class="r">## Diabetes ketoacidose (DKA)
+<pre><code class="r">## Føinger siste 4 uker for pasienter &gt;= 5 år
 
 ## Datakilde
-lokalDT &lt;- lok2018dt1
+lokalDT &lt;- subset(lok2018dt1, agekat != 1)
 
-## Aggrigerer
-dkaTab &lt;- groupingsets(lokalDT,
-  j = .(N = sum(!is.na(und_ketoacidose)),
-       ja = length(which(und_ketoacidose == &quot;Ja&quot;))),
+lokalDT[, .N, by = und_foling]
+</code></pre>
+
+<pre><code>##    und_foling   N
+## 1:        Nei 197
+## 2:       &lt;NA&gt;   7
+## 3:   Vet ikke   3
+## 4:         Ja   4
+</code></pre>
+
+<pre><code class="r">## Aggrigerer
+folTab &lt;- groupingsets(lokalDT,
+  j = .(N = sum(!is.na(und_foling)),
+       ja = length(which(und_foling == &quot;Ja&quot;))),
   by = c(&quot;agecat&quot;, &quot;agekat&quot;),
   sets = list(c(&quot;agecat&quot;, &quot;agekat&quot;), character(0))
 )
 
-dkaTab[, pros := as.character(round(ja / N * 100, digits = 1))]
-dkaTab[ja == 0, pros := &quot;- &quot;]
-dkaTab[is.na(agecat), agecat := &quot;Totalt&quot;]
+folTab[, pros := as.character(round(ja / N * 100, digits = 1))]
+folTab[ja == 0, pros := &quot;- &quot;]
+folTab[is.na(agecat), agecat := &quot;Totalt&quot;]
 
 ## lager id til sortering
-dkaTab[is.na(agekat), agekat := nrow(dkaTab) * 2] #gir høyeste tall så det ligger altid nedest
-setorder(dkaTab, agekat) #reorder rows
+## folTab[, id := .I]
+folTab[is.na(agekat), agekat := nrow(folTab) * 2]
+setorder(folTab, agekat) #reorder rows
 
 ## Justeringer
-dkaTab[, agekat := NULL]
-setcolorder(dkaTab, c(&quot;agecat&quot;, &quot;ja&quot;, &quot;pros&quot;, &quot;N&quot;))
-setnames(dkaTab, names(dkaTab), c(&quot;Alder kategorier&quot;, &quot;Antall&quot;, &quot;Andel&quot;, &quot;N&quot;))
+folTab[, agekat := NULL]
+setcolorder(folTab, c(&quot;agecat&quot;, &quot;ja&quot;, &quot;pros&quot;, &quot;N&quot;))
+setnames(folTab, names(folTab), c(&quot;Alder kategorier&quot;, &quot;Antall&quot;, &quot;Andel&quot;, &quot;N&quot;))
 
 ## Tabell
-dkaTabell &lt;- tabFun(dkaTab, &quot;Har hatt ketoacidose&quot;, total = TRUE)
+folTabell &lt;- tabFun(folTab, &quot;Har hatt føling&quot;, total = TRUE)
 </code></pre>
 
 </body>

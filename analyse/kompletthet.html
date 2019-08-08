@@ -201,34 +201,61 @@ hr {
 </head>
 
 <body>
-<pre><code class="r">## Diabetes ketoacidose (DKA)
+<pre><code class="r">## Kompletthet
+</code></pre>
 
-## Datakilde
-lokalDT &lt;- lok2018dt1
+<pre><code class="r">## Datakilde
+useDT &lt;- lok2018dt1
 
-## Aggrigerer
-dkaTab &lt;- groupingsets(lokalDT,
-  j = .(N = sum(!is.na(und_ketoacidose)),
-       ja = length(which(und_ketoacidose == &quot;Ja&quot;))),
-  by = c(&quot;agecat&quot;, &quot;agekat&quot;),
-  sets = list(c(&quot;agecat&quot;, &quot;agekat&quot;), character(0))
-)
+## useDT[is.na(und_syk_col), .N]
+## useDT[is.na(lab_HbA1cAkerVerdi), .N]
+## resVar &lt;- c(&quot;und_syk_col&quot;, &quot;und_syk_hypo&quot;, &quot;und_syk_hype&quot;)
 
-dkaTab[, pros := as.character(round(ja / N * 100, digits = 1))]
-dkaTab[ja == 0, pros := &quot;- &quot;]
-dkaTab[is.na(agecat), agecat := &quot;Totalt&quot;]
+komVar &lt;- c(&quot;lab_HbA1c&quot;, &quot;lab_HbA1cAkerVerdi&quot;,  &quot;und_inssjokk&quot;, &quot;und_ketoacidose&quot;, &quot;lab_lip_LDL_2&quot;, &quot;inn_Blodtrykk_s&quot;, &quot;inn_Blodtrykk_d&quot;, &quot;und_infiltrater&quot;, &quot;inn_Lengde&quot;, &quot;inn_Vekt&quot;)
 
-## lager id til sortering
-dkaTab[is.na(agekat), agekat := nrow(dkaTab) * 2] #gir høyeste tall så det ligger altid nedest
-setorder(dkaTab, agekat) #reorder rows
+# Antall ikke missing
+komWt &lt;- useDT[, lapply(.SD, function(x) sum(!is.na(x))), .SDcols=komVar]
 
-## Justeringer
-dkaTab[, agekat := NULL]
-setcolorder(dkaTab, c(&quot;agecat&quot;, &quot;ja&quot;, &quot;pros&quot;, &quot;N&quot;))
-setnames(dkaTab, names(dkaTab), c(&quot;Alder kategorier&quot;, &quot;Antall&quot;, &quot;Andel&quot;, &quot;N&quot;))
+## sum total
+komTot &lt;- nrow(useDT)
 
-## Tabell
-dkaTabell &lt;- tabFun(dkaTab, &quot;Har hatt ketoacidose&quot;, total = TRUE)
+## snu til long
+komLg &lt;- melt(komWt, measure.vars = komVar, variable.name = &quot;var&quot;, value.name = &quot;n&quot;)
+
+## legger ved totallen
+komLg[, tot := komTot]
+
+
+## Fysisk aktivitet for bare de fra 6 år og eldre
+aktDT &lt;- subset(useDT, alder &gt;=6)
+## aktVar &lt;- c(&quot;Inn_Akt&quot;, &quot;Inn_Akt_Timer_Uke&quot;)
+## aktiv[, lapply(.SD, function(x) sum(!is.na(x))), .SDcols=aktVar]
+aktN &lt;- aktDT[, .(var = &quot;aktiv&quot;, n = sum(!is.na(Inn_Akt)), tot = .N)]
+
+## Merge alle DT
+komAll &lt;- rbindlist(list(komLg, aktN), use.names = TRUE)
+
+## prosent
+komAll[, pros := round(n / tot * 100, digits = 1)]
+
+## Gir nytt navn til var
+komAll[, nr := .I]
+komNavn &lt;- c(&quot;HbA1c eget lab&quot;,
+  &quot;HbA1c sentral&quot;,
+  &quot;Insulinsjokk&quot;,
+  &quot;DKA&quot;,
+  &quot;LDL&quot;,
+  &quot;BT Systolisk&quot;,
+  &quot;BT Diastolisk&quot;,
+  &quot;Infiltrater&quot;,
+  &quot;Høyde&quot;,
+  &quot;Vekt&quot;,
+  &quot;Fysisk aktivitet&quot;)
+
+komAll[.(nr = 1:11, to = komNavn), on = &quot;nr&quot;, var2 := i.to]
+## komAll[, c(&quot;var&quot;, &quot;nr&quot;) := NULL]
+
+fig.komp &lt;- regbar(komAll, y = pros, x = var2, num = n, ylab = &quot;prosent&quot;)
 </code></pre>
 
 </body>

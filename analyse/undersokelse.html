@@ -201,34 +201,127 @@ hr {
 </head>
 
 <body>
-<pre><code class="r">## Diabetes ketoacidose (DKA)
+<pre><code class="r">## undersøkelse utført
+</code></pre>
 
-## Datakilde
-lokalDT &lt;- lok2018dt1
+<pre><code class="r">## Datakilde
+undDT &lt;- lok2018dt1
 
-## Aggrigerer
-dkaTab &lt;- groupingsets(lokalDT,
-  j = .(N = sum(!is.na(und_ketoacidose)),
-       ja = length(which(und_ketoacidose == &quot;Ja&quot;))),
-  by = c(&quot;agecat&quot;, &quot;agekat&quot;),
-  sets = list(c(&quot;agecat&quot;, &quot;agekat&quot;), character(0))
-)
+## variablene
+undVar &lt;- c(&quot;und_Oye&quot;, &quot;und_laser&quot;, &quot;und_Retinopati&quot;, &quot;und_fotter&quot;, &quot;und_periferneu&quot;, &quot;und_infiltrater&quot;, &quot;und_hudforandring&quot;, &quot;lab_res_persmikro&quot;)
 
-dkaTab[, pros := as.character(round(ja / N * 100, digits = 1))]
-dkaTab[ja == 0, pros := &quot;- &quot;]
-dkaTab[is.na(agecat), agecat := &quot;Totalt&quot;]
+## testDT &lt;- subset(undDT, select = undVar)
 
-## lager id til sortering
-dkaTab[is.na(agekat), agekat := nrow(dkaTab) * 2] #gir høyeste tall så det ligger altid nedest
-setorder(dkaTab, agekat) #reorder rows
+## ## Sjekk variabelinnholdt
+## varList &lt;- list()
+## for (i in undVar){
+##   .l2 &lt;- undDT[, .N, by = .(get(i))]
+##   varList[[i]] &lt;- .l2
+## }
+## varList
 
-## Justeringer
-dkaTab[, agekat := NULL]
-setcolorder(dkaTab, c(&quot;agecat&quot;, &quot;ja&quot;, &quot;pros&quot;, &quot;N&quot;))
-setnames(dkaTab, names(dkaTab), c(&quot;Alder kategorier&quot;, &quot;Antall&quot;, &quot;Andel&quot;, &quot;N&quot;))
 
-## Tabell
-dkaTabell &lt;- tabFun(dkaTab, &quot;Har hatt ketoacidose&quot;, total = TRUE)
+## Count missing og non-missing
+</code></pre>
+
+<pre><code class="r">## undVarMiss &lt;- undDT[, lapply(.SD, function(x) sum(is.na(x))), .SDcols = undVar]
+undVarNon &lt;- undDT[, lapply(.SD, function(x) sum(!is.na(x))), .SDcols = undVar]
+
+## Non missing long table
+undNonLg &lt;- melt(undVarNon,
+  measure.vars = undVar,
+  variable.name = &quot;var&quot;,
+  value.name = &quot;n&quot;)
+
+
+## Count som svarte Ja
+</code></pre>
+
+<pre><code class="r"># library(sqldf)
+# sqldf(&#39;SELECT COUNT(und_Oye) FROM testDT WHERE und_Oye = &quot;Ja&quot;;&#39;)
+
+mList &lt;- list()
+
+for (i in undVar){
+  misInd &lt;- undDT[get(i)==&quot;Ja&quot;, .N]
+  mList[[i]] &lt;- misInd
+}
+
+undVarTall &lt;- as.data.table(mList)
+
+undVarLg &lt;- melt(undVarTall,
+  measure.vars = undVar,
+  variable.name = &quot;var&quot;,
+  value.name = &quot;ja&quot;)
+
+## Merge table
+undDD &lt;- merge(undVarLg, undNonLg, by = &quot;var&quot;)
+
+
+## urin-albumin og mikroalbuminuri
+## undDT[, .N, by=.(lab_res_persmikro)]
+
+## urin-albumin er tall derfor er det å være missing eller ikke
+urinNon &lt;- undDT[!is.na(lab_res_1prove), .N]
+urinDD &lt;- undDT[, .(var = &quot;lab_res_1prove&quot;, ja = urinNon, n = nrow(undDT))]
+
+## bind all table
+undAll &lt;- rbindlist(list(undDD, urinDD), use.names = TRUE)
+
+## Prosent
+undAll[, pros := round(ja / n * 100, digits = 1)]
+
+## Pyntting til tabellen
+undAll[, id := .I]
+
+nyNavn &lt;- c(&quot;Øyeundersøkelse&quot;, &quot;Laserbehandling&quot;, &quot;Påvist retinopati&quot;,
+  &quot;Føtter&quot;, &quot;Påvist klinisk perifer neuropati&quot;, &quot;Påvist infiltrater&quot;,
+  &quot;Påvist hudforandringer&quot;, &quot;Påvist Persisterende mikroalbuminuri&quot;,
+  &quot;Registrert verdi urin-albumin&quot;)
+
+undAll[.(id = 1:9, to = nyNavn), on = &quot;id&quot;, navn := i.to]
+
+
+## Beholder 1 decimal selv om 0
+undAll[, pro := as.character(sprintf(&quot;%0.1f&quot;, pros))]
+## Hvis 0 så blir bare strek
+undAll[pros == 0, pro := &quot;- &quot;]
+## Bort ubrukte kollone
+undAll[, c(&quot;var&quot;, &quot;pros&quot;, &quot;id&quot;) := NULL]
+## Reorder
+setcolorder(undAll, c(&quot;navn&quot;, &quot;ja&quot;, &quot;pro&quot;, &quot;n&quot;))
+
+setnames(undAll, names(undAll),
+  c(&quot; &quot;, &quot;Antall&quot;, &quot;Andel&quot;, &quot;N&quot;))
+
+## Tabell hux
+lastLine &lt;- dim(undAll)[1] + 1
+
+und.htab &lt;- as_hux(undAll, add_colnames = TRUE)
+
+und.htab &lt;- und.htab %&gt;%
+  ## set_bottom_border(1,, TRUE) %&gt;%
+  set_bold(1,, TRUE) %&gt;%
+  set_bottom_border(lastLine,, TRUE) %&gt;%
+  map_background_color(by_rows(&quot;grey95&quot;, &quot;white&quot;)) %&gt;%
+  set_position(&quot;left&quot;) %&gt;%
+  set_align(, 3, &quot;right&quot;) %&gt;%
+  set_latex_float(&quot;h!&quot;)
+
+col_width(und.htab) &lt;- c(.5, .15, .15, .2)
+width(und.htab) &lt;- 0.9
+wrap(und.htab) &lt;- TRUE
+
+und.htab &lt;- rbind(c(&quot;&quot;, &quot;Undersøkelser utført&quot;, &quot;&quot;, &quot;&quot;), und.htab)
+
+und.htab &lt;- merge_cells(und.htab, 1, 2:3)
+align(und.htab)[1, 2] &lt;- &quot;center&quot;
+bottom_border(und.htab)[1, 2] &lt;- 0.5
+bottom_border(und.htab)[2, ] &lt;- TRUE
+
+
+
+## und.htab &lt;- add_footnote(und.htab, &quot;N er antall registrert med informasjon&quot;)
 </code></pre>
 
 </body>

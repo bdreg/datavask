@@ -201,34 +201,47 @@ hr {
 </head>
 
 <body>
-<pre><code class="r">## Diabetes ketoacidose (DKA)
+<pre><code class="r">## Kun DT1 pasienter
+</code></pre>
 
-## Datakilde
-lokalDT &lt;- lok2018dt1
+<pre><code class="r">## Datasettet som skal brukes er dt1
+## for bare lokal sykehus bruker lokal2018
 
-## Aggrigerer
-dkaTab &lt;- groupingsets(lokalDT,
-  j = .(N = sum(!is.na(und_ketoacidose)),
-       ja = length(which(und_ketoacidose == &quot;Ja&quot;))),
-  by = c(&quot;agecat&quot;, &quot;agekat&quot;),
-  sets = list(c(&quot;agecat&quot;, &quot;agekat&quot;), character(0))
-)
+## datakilde
+dtDiab1 &lt;- lok2018dt1
 
-dkaTab[, pros := as.character(round(ja / N * 100, digits = 1))]
-dkaTab[ja == 0, pros := &quot;- &quot;]
-dkaTab[is.na(agecat), agecat := &quot;Totalt&quot;]
+## Pasient karakteristika
 
-## lager id til sortering
-dkaTab[is.na(agekat), agekat := nrow(dkaTab) * 2] #gir høyeste tall så det ligger altid nedest
-setorder(dkaTab, agekat) #reorder rows
+varKar &lt;- c(&quot;PasientID&quot;, &quot;alder&quot;, &quot;diagAlder&quot;, &quot;diagVar&quot;, &quot;bmi&quot;)
 
-## Justeringer
-dkaTab[, agekat := NULL]
-setcolorder(dkaTab, c(&quot;agecat&quot;, &quot;ja&quot;, &quot;pros&quot;, &quot;N&quot;))
-setnames(dkaTab, names(dkaTab), c(&quot;Alder kategorier&quot;, &quot;Antall&quot;, &quot;Andel&quot;, &quot;N&quot;))
+## dtKar &lt;- subset(dt1, select = varKar)
+dtKar &lt;- subset(dtDiab1, select = varKar)
+
+karLong &lt;- melt(dtKar, id.vars = &quot;PasientID&quot;, variable.name = &quot;chr&quot;, value.name = &quot;tall&quot;)
+
+## Antall
+karTall &lt;- karLong[!is.na(tall), .N, by = chr]
 
 ## Tabell
-dkaTabell &lt;- tabFun(dkaTab, &quot;Har hatt ketoacidose&quot;, total = TRUE)
+karTab &lt;- karLong[, list(mean = mean(tall, na.rm = T),
+               median = median(tall, na.rm = T),
+               min = min(tall, na.rm = T),
+               maks = max(tall, na.rm = T)), by = .(chr)]
+
+kar.tab &lt;- karTall[karTab, on = &quot;chr&quot;]
+
+karNavn &lt;- names(kar.tab)[3:6]
+
+for (i in karNavn){
+  kar.tab[, (i) := round(get(i), digits = 1)]
+}
+
+karOld &lt;- varKar[-1]
+karNy &lt;- c(&quot;Alder (år)&quot;, &quot;Alder ved diagnose (år)&quot;, &quot;Sykdomsvarighet (år)&quot;, &quot;BMI&quot;)
+kar.tab[.(chr = karOld, to = karNy), on = &quot;chr&quot;, chr := i.to]
+
+setnames(kar.tab, c(&quot;chr&quot;, &quot;N&quot;, &quot;mean&quot;), c(&quot; &quot;, &quot;n&quot;, &quot;gj.snitt&quot;))
+## kar.tab[]
 </code></pre>
 
 </body>

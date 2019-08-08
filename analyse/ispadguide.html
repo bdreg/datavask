@@ -201,34 +201,63 @@ hr {
 </head>
 
 <body>
-<pre><code class="r">## Diabetes ketoacidose (DKA)
+<pre><code class="r">## ISPAD guidelines
+</code></pre>
 
-## Datakilde
-lokalDT &lt;- lok2018dt1
+<pre><code class="r">## Datakilde
+ispDT &lt;- lok2018dt1
 
-## Aggrigerer
-dkaTab &lt;- groupingsets(lokalDT,
-  j = .(N = sum(!is.na(und_ketoacidose)),
-       ja = length(which(und_ketoacidose == &quot;Ja&quot;))),
-  by = c(&quot;agecat&quot;, &quot;agekat&quot;),
-  sets = list(c(&quot;agecat&quot;, &quot;agekat&quot;), character(0))
-)
+ispDT[, ispad := 0] %&gt;%
+  .[alder &gt;= 10 &amp; diagVar &gt;= 2, ispad  := 1] %&gt;%
+  .[alder &lt; 10 &amp; diagVar &gt;= 5, ispad := 1]
 
-dkaTab[, pros := as.character(round(ja / N * 100, digits = 1))]
-dkaTab[ja == 0, pros := &quot;- &quot;]
-dkaTab[is.na(agecat), agecat := &quot;Totalt&quot;]
+## Antall kvalifisert til ISPAD definisjon
+ispadN &lt;- ispDT[ispad == 1, .N]
 
-## lager id til sortering
-dkaTab[is.na(agekat), agekat := nrow(dkaTab) * 2] #gir høyeste tall så det ligger altid nedest
-setorder(dkaTab, agekat) #reorder rows
+## Øye undersøkelse
+oye &lt;- ispDT[ispad == 1 &amp; und_Oye == &quot;Ja&quot;, .(var = &quot;oye&quot;, ja = .N)]
+ispDT[ispad == 1, .N, by=.(und_Oye)] #sjekk tallene er riktig
+</code></pre>
 
-## Justeringer
-dkaTab[, agekat := NULL]
-setcolorder(dkaTab, c(&quot;agecat&quot;, &quot;ja&quot;, &quot;pros&quot;, &quot;N&quot;))
-setnames(dkaTab, names(dkaTab), c(&quot;Alder kategorier&quot;, &quot;Antall&quot;, &quot;Andel&quot;, &quot;N&quot;))
+<pre><code>##     und_Oye  N
+## 1:       Ja 60
+## 2:      Nei 73
+## 3: Vet ikke 20
+## 4:     &lt;NA&gt;  7
+</code></pre>
 
-## Tabell
-dkaTabell &lt;- tabFun(dkaTab, &quot;Har hatt ketoacidose&quot;, total = TRUE)
+<pre><code class="r">## Urin
+urin.isp &lt;- ispDT[ispad == 1, sum(!is.na(lab_res_1prove))] #utført
+## ispDT[ispad == 1, sum(is.na(lab_res_1prove))]
+urin &lt;- data.table(var = &quot;urin&quot;, ja = urin.isp)
+
+## ispad tabell
+ispTab &lt;- rbindlist(list(oye, urin))
+ispTab[, tot := ispadN]
+ispTab[, pros := round(ja / tot * 100, digits = 1)]
+
+ispTab[.(var = c(&quot;oye&quot;, &quot;urin&quot;), to = c(&quot;Øye&quot;, &quot;Urin&quot;)), on = &quot;var&quot;, var := i.to]
+setcolorder(ispTab, c(&quot;var&quot;, &quot;ja&quot;, &quot;pros&quot;, &quot;tot&quot;))
+setnames(ispTab, names(ispTab), c(&quot;Undersøkelser&quot;, &quot;Antall&quot;, &quot;Andel&quot;, &quot;N&quot;))
+
+## lage tabell
+lastLine &lt;- nrow(ispTab) + 1
+isp.htab &lt;- as_hux(ispTab, add_colnames = TRUE)
+
+isp.htab &lt;- isp.htab %&gt;%
+  set_bold(1, everywhere, TRUE) %&gt;%
+  set_bottom_border(lastLine,, TRUE) %&gt;%
+  map_background_color(by_rows(&quot;grey95&quot;, &quot;white&quot;)) %&gt;%
+  set_position(&quot;left&quot;) %&gt;%
+  set_latex_float(&quot;h&quot;) %&gt;%
+  set_col_width(c(.4, .15, .15, .2))
+
+isp.htab &lt;- rbind(c(&quot;Type&quot;, &quot;Undersøkelser utført&quot;, &quot;&quot;, &quot;&quot;), isp.htab)
+
+isp.htab &lt;- merge_cells(isp.htab, 1, 2:3)
+align(isp.htab)[1, 2] &lt;- &quot;center&quot;
+bottom_border(isp.htab)[1, 2] &lt;- 0.5
+top_border(isp.htab)[3, ] &lt;- TRUE
 </code></pre>
 
 </body>

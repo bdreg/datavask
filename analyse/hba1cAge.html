@@ -201,34 +201,66 @@ hr {
 </head>
 
 <body>
-<pre><code class="r">## Diabetes ketoacidose (DKA)
+<pre><code class="r">## HbA1c og alder
 
-## Datakilde
 lokalDT &lt;- lok2018dt1
 
-## Aggrigerer
-dkaTab &lt;- groupingsets(lokalDT,
-  j = .(N = sum(!is.na(und_ketoacidose)),
-       ja = length(which(und_ketoacidose == &quot;Ja&quot;))),
-  by = c(&quot;agecat&quot;, &quot;agekat&quot;),
-  sets = list(c(&quot;agecat&quot;, &quot;agekat&quot;), character(0))
-)
+## Antall med svar
+hbN &lt;- lokalDT[!is.na(lab_HbA1cAkerVerdi), .N]
 
-dkaTab[, pros := as.character(round(ja / N * 100, digits = 1))]
-dkaTab[ja == 0, pros := &quot;- &quot;]
-dkaTab[is.na(agecat), agecat := &quot;Totalt&quot;]
+## Aggregate
+## hbaTab &lt;- lokalDT[,
+##   .(
+##     n = .N,
+##     mean = mean(lab_HbA1cAkerVerdi, na.rm = T),
+##     median = median(lab_HbA1cAkerVerdi, na.rm = T),
+##     sd = sd(lab_HbA1cAkerVerdi, na.rm = T),
+##     min = min(lab_HbA1cAkerVerdi, na.rm = T),
+##     max = max(lab_HbA1cAkerVerdi, na.rm = T)
+##   ),
+##   by = .(agecat, agekat)]
 
-## lager id til sortering
-dkaTab[is.na(agekat), agekat := nrow(dkaTab) * 2] #gir høyeste tall så det ligger altid nedest
-setorder(dkaTab, agekat) #reorder rows
+hbaTab &lt;- rollup(lokalDT,
+  j = list(
+    n = .N,
+    mean = mean(lab_HbA1cAkerVerdi, na.rm = TRUE),
+    median = median(lab_HbA1cAkerVerdi, na.rm = TRUE),
+    sd = sd(lab_HbA1cAkerVerdi, na.rm = TRUE),
+    min = min(lab_HbA1cAkerVerdi, na.rm = TRUE),
+    max = max(lab_HbA1cAkerVerdi, na.rm = TRUE)
+  ),
+  by = c(&quot;agecat&quot;, &quot;agekat&quot;))
+</code></pre>
 
-## Justeringer
-dkaTab[, agekat := NULL]
-setcolorder(dkaTab, c(&quot;agecat&quot;, &quot;ja&quot;, &quot;pros&quot;, &quot;N&quot;))
-setnames(dkaTab, names(dkaTab), c(&quot;Alder kategorier&quot;, &quot;Antall&quot;, &quot;Andel&quot;, &quot;N&quot;))
+<pre><code>## Warning in min(lab_HbA1cAkerVerdi, na.rm = TRUE): no non-missing arguments
+## to min; returning Inf
+</code></pre>
 
-## Tabell
-dkaTabell &lt;- tabFun(dkaTab, &quot;Har hatt ketoacidose&quot;, total = TRUE)
+<pre><code>## Warning in max(lab_HbA1cAkerVerdi, na.rm = TRUE): no non-missing arguments
+## to max; returning -Inf
+</code></pre>
+
+<pre><code class="r">## Totalt skal være nedest
+hbaTab[is.na(agecat), agekat := nrow(hbaTab) * 2]
+
+hbaTab &lt;- hbaTab[!is.na(agekat), ]
+
+setorder(hbaTab, agekat)
+hbaTab[is.na(agecat), agecat := &quot;Totalt&quot;]
+hbaTab[, agekat := NULL]
+
+valgNavn &lt;- names(hbaTab)[3:ncol(hbaTab)]
+
+for (i in valgNavn){
+ hbaTab[, (i) :=  sprintf(&quot;%0.2f&quot;, get(i))]
+}
+
+setnames(hbaTab, c(&quot;agecat&quot;, &quot;mean&quot;, &quot;max&quot;), c(&quot;Alder&quot;, &quot;gj.snitt&quot;, &quot;maks&quot;))
+
+outTab &lt;- tabHux(hbaTab, total = TRUE)
+
+outTab &lt;- outTab %&gt;%
+  set_align(, c(3, 5), &quot;right&quot;)
 </code></pre>
 
 </body>

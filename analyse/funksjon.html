@@ -201,34 +201,149 @@ hr {
 </head>
 
 <body>
-<pre><code class="r">## Diabetes ketoacidose (DKA)
+<pre><code class="r">## Samling av forskjellige funksjoner som skal brukes i analysen
 
-## Datakilde
-lokalDT &lt;- lok2018dt1
+## Lager kategorisering for alder
+ageCat &lt;- function(x, lower, upper, by, sep = &quot;-&quot;) {
+  ## Finne høyeste kategori
+  kat &lt;- paste0(seq(lower + by - 1, upper - 1, by = by))
+  indTop &lt;- max(length(kat))
+  top &lt;- as.numeric(kat[indTop])
 
-## Aggrigerer
-dkaTab &lt;- groupingsets(lokalDT,
-  j = .(N = sum(!is.na(und_ketoacidose)),
-       ja = length(which(und_ketoacidose == &quot;Ja&quot;))),
-  by = c(&quot;agecat&quot;, &quot;agekat&quot;),
-  sets = list(c(&quot;agecat&quot;, &quot;agekat&quot;), character(0))
-)
+  labs &lt;- paste0(c(paste(seq(lower, upper - by, by = by),
+    seq(lower + by - 1, upper - 1, by = by),
+    sep = sep),
+    paste(top + 1, &quot;+&quot;, sep = &quot;&quot;)))
+  cut(floor(x), breaks = c(seq(lower, upper, by = by), Inf),
+    include.lowest = TRUE, right = FALSE, labels = labs)
+}
 
-dkaTab[, pros := as.character(round(ja / N * 100, digits = 1))]
-dkaTab[ja == 0, pros := &quot;- &quot;]
-dkaTab[is.na(agecat), agecat := &quot;Totalt&quot;]
 
-## lager id til sortering
-dkaTab[is.na(agekat), agekat := nrow(dkaTab) * 2] #gir høyeste tall så det ligger altid nedest
-setorder(dkaTab, agekat) #reorder rows
+## Lager tabell med 4 kolonner
+tabFun &lt;- function(dt, navn, size = 0.7, rap = FALSE, total = FALSE){
 
-## Justeringer
-dkaTab[, agekat := NULL]
-setcolorder(dkaTab, c(&quot;agecat&quot;, &quot;ja&quot;, &quot;pros&quot;, &quot;N&quot;))
-setnames(dkaTab, names(dkaTab), c(&quot;Alder kategorier&quot;, &quot;Antall&quot;, &quot;Andel&quot;, &quot;N&quot;))
+  lastLine &lt;- nrow(dt) + 1
+  tabhx &lt;- as_hux(dt, add_colnames = TRUE)
 
-## Tabell
-dkaTabell &lt;- tabFun(dkaTab, &quot;Har hatt ketoacidose&quot;, total = TRUE)
+  tabhx &lt;- tabhx %&gt;%
+    set_bold(1,, TRUE) %&gt;%
+    map_background_color(by_rows(&quot;grey95&quot;, &quot;white&quot;)) %&gt;%
+    set_position(&quot;left&quot;) %&gt;%
+    set_latex_float(&quot;h&quot;) %&gt;%
+    set_align(, 3, &quot;right&quot;) %&gt;%
+    set_col_width(c(.4, .2, .2, .3))
+
+  tabhx &lt;- rbind(c(&quot;&quot;, navn, &quot;&quot;, &quot;&quot;), tabhx)
+
+  tabhx &lt;- merge_cells(tabhx, 1, 2:3)
+
+  tabhx &lt;- tabhx %&gt;%
+    set_align(1, 2, &quot;center&quot;) %&gt;%
+    set_bottom_border(1, 2, 0.5) %&gt;%
+    set_top_border(3,, TRUE)
+
+  if (total){
+    bold(tabhx)[lastLine + 1, ] &lt;- TRUE
+    top_border(tabhx)[lastLine + 1, ] &lt;- TRUE
+  } else {
+    bottom_border(tabhx)[lastLine + 1,] &lt;- TRUE
+  }
+
+  width(tabhx) &lt;- size
+
+  if (rap){
+  ## for at width funker i PDF så må &#39;wrap&#39; være TRUE
+  wrap(tabhx) &lt;- TRUE
+  }
+
+  return(tabhx)
+
+}
+
+## Lager tabell med overordnet tittel
+tabFunx &lt;- function(dt, navn, size = 0.7, rap = FALSE, total = FALSE,
+                    del = c(.4, .2, .2, .3),
+                    right = 3,
+                    center = 2,
+                    mix = 2:3){
+
+  lastLine &lt;- nrow(dt) + 1
+  tabhx &lt;- as_hux(dt, add_colnames = TRUE)
+
+  tabhx &lt;- tabhx %&gt;%
+    set_bold(1,, TRUE) %&gt;%
+    map_background_color(by_rows(&quot;grey95&quot;, &quot;white&quot;)) %&gt;%
+    set_position(&quot;left&quot;) %&gt;%
+    set_latex_float(&quot;h&quot;) %&gt;%
+    set_align(, right, &quot;right&quot;) %&gt;%
+    set_col_width(del)
+
+  tabhx &lt;- rbind(c(&quot;&quot;, &quot;&quot;, navn, &quot;&quot;, &quot;&quot;), tabhx)
+
+  tabhx &lt;- merge_cells(tabhx, 1, mix)
+
+  tabhx &lt;- tabhx %&gt;%
+    set_align(1, center, &quot;center&quot;) %&gt;%
+    set_bottom_border(1, center, 0.4) %&gt;%
+    set_top_border(3,, TRUE)
+
+  if (total){
+    bold(tabhx)[lastLine + 1, ] &lt;- TRUE
+    top_border(tabhx)[lastLine + 1, ] &lt;- TRUE
+  } else {
+    bottom_border(tabhx)[lastLine + 1,] &lt;- TRUE
+  }
+
+  width(tabhx) &lt;- size
+
+  if (rap){
+  ## for at width funker i PDF så må &#39;wrap&#39; være TRUE
+  wrap(tabhx) &lt;- TRUE
+  }
+
+  return(tabhx)
+
+}
+
+
+## Lager tabell med 5 kolonner
+tabHux &lt;- function(dt, size = 0.7, rap = FALSE, total = FALSE, del = NULL, ...){
+
+  lastLine &lt;- nrow(dt) + 1
+  tabhx &lt;- as_hux(dt, add_colnames = TRUE)
+
+  tabhx &lt;- tabhx %&gt;%
+    set_bold(1,, TRUE) %&gt;%
+    set_bottom_border(1,, TRUE) %&gt;%
+    map_background_color(by_rows(&quot;grey95&quot;, &quot;white&quot;)) %&gt;%
+    set_position(&quot;left&quot;) %&gt;%
+    set_latex_float(&quot;h&quot;)
+
+
+
+  if (total){
+    bold(tabhx)[lastLine, ] &lt;- TRUE
+    top_border(tabhx)[lastLine, ] &lt;- TRUE
+  } else {
+    bottom_border(tabhx)[lastLine,] &lt;- TRUE
+  }
+
+  if (!is.null(del)){
+    tabhx &lt;- tabhx %&gt;%
+      set_col_width(del)
+    ## col_width(tabhx) &lt;- del
+  }
+
+  width(tabhx) &lt;- size
+
+  if (rap){
+    ## for at width funker i PDF så må &#39;wrap&#39; være TRUE
+    wrap(tabhx) &lt;- TRUE
+  }
+
+  return(tabhx)
+
+}
 </code></pre>
 
 </body>

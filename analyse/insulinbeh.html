@@ -201,34 +201,185 @@ hr {
 </head>
 
 <body>
-<pre><code class="r">## Diabetes ketoacidose (DKA)
+<pre><code class="r">## Insulin behandling
 
-## Datakilde
+## lokalDT &lt;- copy(ars2018)
 lokalDT &lt;- lok2018dt1
 
-## Aggrigerer
-dkaTab &lt;- groupingsets(lokalDT,
-  j = .(N = sum(!is.na(und_ketoacidose)),
-       ja = length(which(und_ketoacidose == &quot;Ja&quot;))),
-  by = c(&quot;agecat&quot;, &quot;agekat&quot;),
-  sets = list(c(&quot;agecat&quot;, &quot;agekat&quot;), character(0))
-)
 
-dkaTab[, pros := as.character(round(ja / N * 100, digits = 1))]
-dkaTab[ja == 0, pros := &quot;- &quot;]
-dkaTab[is.na(agecat), agecat := &quot;Totalt&quot;]
+## Mltiinjeksjon
+</code></pre>
 
-## lager id til sortering
-dkaTab[is.na(agekat), agekat := nrow(dkaTab) * 2] #gir høyeste tall så det ligger altid nedest
-setorder(dkaTab, agekat) #reorder rows
+<pre><code class="r">mulVar &lt;- c(&quot;beh_ins_beh_hurtig_ie_dogn&quot;, &quot;beh_ins_beh_lang_ie_dogn&quot;)
 
-## Justeringer
-dkaTab[, agekat := NULL]
-setcolorder(dkaTab, c(&quot;agecat&quot;, &quot;ja&quot;, &quot;pros&quot;, &quot;N&quot;))
-setnames(dkaTab, names(dkaTab), c(&quot;Alder kategorier&quot;, &quot;Antall&quot;, &quot;Andel&quot;, &quot;N&quot;))
+## Antall som bruker dvs. har svart minst en av dem i &#39;mulVar&#39;
+lokalDT[, multN := NA_integer_]
+lokalDT[!is.na(get(mulVar[1])), multN := 1L]
+lokalDT[!is.na(get(mulVar[2])), multN := 1L]
+
+
+## Totalt av mulVar
+lokalDT[!is.na(get(mulVar[1])) &amp; !is.na(get(mulVar[2])),
+  multot := rowSums(.SD, na.rm = TRUE), .SDcols = mulVar,
+  by = .(PasientID)]
+## Hvis en av dem er NA så ikke telle
+lokalDT[is.na(get(mulVar[1])) | is.na(get(mulVar[2])), multot := NA]
+## Total multiinjeksjon del med kroppsvekt
+lokalDT[!is.na(multot) &amp; !is.na(inn_Vekt), mulkg := multot / inn_Vekt, by = .(PasientID)]
+lokalDT[is.na(multot) &amp; is.na(inn_Vekt), mulkg  := NA_real_, by = .(PasientID)]
+
+## 1 til multiinjeksjon og 2 til insulinpumpe (se videre nede)
+lokalDT[!is.na(mulkg), insbeh := 1L]
+
+
+
+## Insulinpumpe
+</code></pre>
+
+<pre><code class="r">insVar &lt;- c(&quot;beh_ins_type_ie_basal&quot;, &quot;beh_ins_type_ie_bolus&quot;)
+
+## Antall som bruker dvs. har svart minst en av dem i &#39;insVar&#39;
+lokalDT[, insN := NA_integer_]
+lokalDT[!is.na(get(insVar[1])), insN := 1L]
+lokalDT[!is.na(get(insVar[2])), insN := 1L]
+
+
+## Totalt av insVar
+lokalDT[!is.na(insVar[1]) &amp; !is.na(insVar[2]),
+  instot := rowSums(.SD, na.rm = TRUE), .SDcols = insVar,
+  by = .(PasientID)]
+## Hvis en av dem er NA så teller ikke
+lokalDT[is.na(get(insVar[1])) | is.na(insVar[2]), instot := NA]
+## Total multiinjeksjon del med kroppsvekt
+lokalDT[!is.na(instot) &amp; !is.na(inn_Vekt), inskg := instot / inn_Vekt, by = .(PasientID)]
+lokalDT[is.na(instot) &amp; is.na(inn_Vekt), inskg := NA_real_, by = .(PasientID)]
+
+## 2 til insulinpumpe
+lokalDT[!is.na(inskg), insbeh := 2L]
+
+## Hvis har svar på begge beholder bare en behandling dvs. insulinpumpe
+lokalDT[!is.na(mulkg) &amp; !is.na(inskg), mulkg := NA_real_]
+
+
+## Antall og Andel for multiinjeksjon og
+## insulinpumpe som svarte minst en av målingene
+</code></pre>
+
+<pre><code class="r">multN &lt;- lokalDT[, sum(multN, na.rm = TRUE)]
+insN &lt;- lokalDT[, sum(insN, na.rm = TRUE)]
+behNtot &lt;- multN + insN
+multPros &lt;- round(multN / behNtot * 100, digits = 1)
+insPros &lt;- round(insN / behNtot * 100, digits = 1)
+
+
+
+## rollup(lokalDT,
+##   .(mmult = mean(mulkg, na.rm = TRUE),
+##     minsu = mean(inskg, na.rm = TRUE)),
+##   by = c(&quot;agecat&quot;, &quot;agekat&quot;))
+
+## Aggrigerer tallene
+innTabelRaw &lt;- groupingsets(
+   lokalDT,
+  j = list(
+    nmult = sum(!is.na(mulkg)),
+    mmult = round(mean(mulkg, na.rm = TRUE), digits = 2),
+    ninsu = sum(!is.na(inskg)),
+    minsu = round(mean(inskg, na.rm = TRUE), digits = 2)),
+  by = c(&quot;agekat&quot;, &quot;insbeh&quot;),
+  sets = list(
+    c(&quot;agekat&quot;, &quot;insbeh&quot;),
+    character(0)
+  ))
+
+
+setkey(innTabelRaw, insbeh, agekat)
+
+
+## Multiinjeksjon Tabell
+mulTabVar &lt;- c(&quot;nmult&quot;, &quot;mmult&quot;)
+multTabel &lt;- innTabelRaw[insbeh == 1, .SD, keyby = .(insbeh, agekat), .SDcols = mulTabVar]
+## Insulinpumpe Tabell
+insTabVar &lt;- c(&quot;ninsu&quot;, &quot;minsu&quot;)
+insTabel &lt;- innTabelRaw[insbeh == 2, .SD, keyby = .(insbeh, agekat), .SDcols = insTabVar]
+## insulin behandling tabell
+behTabRaw &lt;- merge(insTabel, multTabel, by = &quot;agekat&quot;, all = TRUE)
+
+
+## Dummy agekat  tabell
+dummyAge &lt;- data.table(agekat = 1:4, agecat = c(&quot;0-4&quot;, &quot;5-9&quot;, &quot;10-14&quot;, &quot;15+&quot;))
+
+## Final Tabell
+behTabRaw &lt;- merge(dummyAge, behTabRaw, by = &quot;agekat&quot;, all.x = TRUE)
+
+## Totalt beh
+behTotal  &lt;- innTabelRaw[is.na(agekat), ]
+
+## Alle Tabell
+innTabel &lt;- rbindlist(list(behTabRaw, behTotal), use.names = TRUE, fill = TRUE)
+innTabel[, c(&quot;insbeh.x&quot;, &quot;insbeh.y&quot;, &quot;insbeh&quot;) := NULL]
+
 
 ## Tabell
-dkaTabell &lt;- tabFun(dkaTab, &quot;Har hatt ketoacidose&quot;, total = TRUE)
+innTabel[is.na(agecat), agecat := &quot;Alle&quot;]
+innTabel[is.na(agekat), agekat := nrow(innTabel) * 2] #sikre at totalt ligger nedest når rader er sortert
+setorder(innTabel, agekat) #sorterer alder kategorier
+innTabel[, agekat := NULL]
+
+## Erstarter NA i antall til 0 hvis finnes
+for (j in c(2L, 4L)){
+  set(innTabel, which(is.na(innTabel[[j]])), j = j, value = 0)
+  }
+
+## For å beholder all 2 decimaler selv om det er 0
+innTabel[, mmult := sprintf(&quot;%0.2f&quot;, mmult)]
+innTabel[, minsu := sprintf(&quot;%0.2f&quot;, minsu)]
+
+## Erstarter NA i mean til &quot;-&quot; hvis finnes
+for (j in c(3L, 5L)){
+  set(innTabel, which(innTabel[[j]] == &quot;NA&quot;), j = j, value = &quot;-&quot;)
+}
+
+## ## gir strek hvis missing
+## behVar &lt;- c(mulTabVar, insTabVar)
+## innTabel[, (behVar) := lapply(.SD, as.character), .SDcol=behVar]
+## for (j in behVar){
+##   set(innTabel, which(is.na(innTabel[[j]])), j = j, value = &quot;-&quot;)
+## }
+
+
+## ny kolonnenavn
+nyNavn &lt;- c(&quot;Alder&quot;, &quot;n&quot;, &quot;gj.snitt&quot;, &quot;n&quot;, &quot;gj.snitt&quot;)
+setnames(innTabel, names(innTabel), nyNavn)
+
+## For å beholder all 2 decimaler selv om det er 0
+
+
+## Tabell
+outTab &lt;- tabHux(innTabel, size = 0.8, total = TRUE, del = c(.2, .15, .2, .15, .2))
+
+## lage over titel
+bottom_border(outTab)[1, ] &lt;- FALSE
+outTab &lt;- rbind(c(&quot;&quot;, &quot;Insulinpumpe&quot;, &quot;&quot;, &quot;Multiinjeksjon (penn)&quot;, &quot;&quot;), outTab)
+
+outTab &lt;- outTab %&gt;%
+  set_bottom_border(2,, TRUE) %&gt;%
+  set_bottom_border(1, 2:5, 0.5) %&gt;%
+  set_top_border(1,, TRUE) %&gt;%
+  set_right_border(, 3, 0.4) %&gt;%
+  set_align(2:nrow(outTab), c(3, 5), &quot;center&quot;)
+
+outTab &lt;- merge_cells(outTab, 1, c(2:3))
+outTab &lt;- merge_cells(outTab, 1, c(4:5))
+
+wrap(outTab) &lt;- TRUE
+
+## outTab &lt;- merge_cells(outTab, 1, c(2:3, 4:5))
+
+
+## ## --- Sjekk var----- ##
+## lokalDT[is.na(inskg),
+##   c(&quot;Pnr&quot;, insVar, &quot;inn_Vekt&quot;, &quot;instot&quot;, &quot;inskg&quot;, &quot;agecat&quot;), with = F]
 </code></pre>
 
 </body>

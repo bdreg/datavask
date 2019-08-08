@@ -201,34 +201,54 @@ hr {
 </head>
 
 <body>
-<pre><code class="r">## Diabetes ketoacidose (DKA)
+<pre><code class="r">## Type pumper
 
-## Datakilde
 lokalDT &lt;- lok2018dt1
 
-## Aggrigerer
-dkaTab &lt;- groupingsets(lokalDT,
-  j = .(N = sum(!is.na(und_ketoacidose)),
-       ja = length(which(und_ketoacidose == &quot;Ja&quot;))),
-  by = c(&quot;agecat&quot;, &quot;agekat&quot;),
-  sets = list(c(&quot;agecat&quot;, &quot;agekat&quot;), character(0))
-)
+#valgtfritt som har blitt sortert av Siv Janne (pumpe_txt
+## lokalDT[, str(pumpe_txt)]
+lokalDT[, .N, by = .(pumpe_txt)]
+</code></pre>
 
-dkaTab[, pros := as.character(round(ja / N * 100, digits = 1))]
-dkaTab[ja == 0, pros := &quot;- &quot;]
-dkaTab[is.na(agecat), agecat := &quot;Totalt&quot;]
+<pre><code>##                  pumpe_txt   N
+## 1:                    &lt;NA&gt; 200
+## 2:  Medtronic Minimed 640G  12
+## 3: Medtronic Paradigme Veo   6
+</code></pre>
 
-## lager id til sortering
-dkaTab[is.na(agekat), agekat := nrow(dkaTab) * 2] #gir høyeste tall så det ligger altid nedest
-setorder(dkaTab, agekat) #reorder rows
+<pre><code class="r">## Alle som er registeret som &quot;Annet&quot; under &#39;beh_ins_pumpe_type&#39; doublesjekkes mot
+## &#39;beh_ins_pumpe_annet&#39; og registerert riktig hvis det finnes
+## Lager nye variabel for merging av disse
+lokalDT[, pumpeType := beh_ins_pumpe_type]
+lokalDT[beh_ins_pumpe_type == &quot;Annet&quot; | is.na(beh_ins_pumpe_type),
+  pumpeType := pumpe_txt]
 
-## Justeringer
-dkaTab[, agekat := NULL]
-setcolorder(dkaTab, c(&quot;agecat&quot;, &quot;ja&quot;, &quot;pros&quot;, &quot;N&quot;))
-setnames(dkaTab, names(dkaTab), c(&quot;Alder kategorier&quot;, &quot;Antall&quot;, &quot;Andel&quot;, &quot;N&quot;))
+##bort med whitespace leading og trailing
+lokalDT[, pumpeType := trimws(pumpeType, which = &quot;both&quot;)]
+
+#Antall
+innTab &lt;- lokalDT[!is.na(pumpeType), .N, by = pumpeType]
+
+## Andel
+nPump &lt;- length(which(!is.na(lokalDT$pumpeType)))
+innTab[, tot := nPump]
+innTab[, pos := round((N / tot) * 100, digits = 1)]
+
+innTab[, tot := NULL]
+
+## Antal missing
+mispump &lt;- length(which(is.na(lokalDT$pumpeType)))
 
 ## Tabell
-dkaTabell &lt;- tabFun(dkaTab, &quot;Har hatt ketoacidose&quot;, total = TRUE)
+setnames(innTab, names(innTab), c(&quot;Pumpe type&quot;, &quot;Antall&quot;, &quot;Andel&quot;))
+outTab &lt;- tabHux(innTab, rap = TRUE, del = c(.6, .2, .2))
+
+
+
+## Sjekker
+</code></pre>
+
+<pre><code class="r">## lokalDT[, .N, by = .(beh_ins_pumpe_type, pumpe_txt, pumpeType)]
 </code></pre>
 
 </body>

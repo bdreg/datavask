@@ -201,34 +201,119 @@ hr {
 </head>
 
 <body>
-<pre><code class="r">## Diabetes ketoacidose (DKA)
+<pre><code class="r">## Andre sykedommer
 
-## Datakilde
 lokalDT &lt;- lok2018dt1
 
-## Aggrigerer
-dkaTab &lt;- groupingsets(lokalDT,
-  j = .(N = sum(!is.na(und_ketoacidose)),
-       ja = length(which(und_ketoacidose == &quot;Ja&quot;))),
-  by = c(&quot;agecat&quot;, &quot;agekat&quot;),
-  sets = list(c(&quot;agecat&quot;, &quot;agekat&quot;), character(0))
-)
+undVar &lt;- c(&quot;und_syk_col&quot;, &quot;und_syk_hypo&quot;, &quot;und_syk_hype&quot;, &quot;und_syk_adhd&quot;,
+  &quot;und_syk_down&quot;, &quot;und_syk_epi&quot;, &quot;und_syk_cys&quot;)
 
-dkaTab[, pros := as.character(round(ja / N * 100, digits = 1))]
-dkaTab[ja == 0, pros := &quot;- &quot;]
-dkaTab[is.na(agecat), agecat := &quot;Totalt&quot;]
+## ## Andre sykedommer må omkode til Ja og Nei pga. text
+## andre &lt;- &quot;und_syk_annet&quot;
+## lokalDT[, sykannet := und_syk_annet] %&gt;%
+##   .[!is.na(und_syk_annet), sykannet := &quot;Ja&quot;]
 
-## lager id til sortering
-dkaTab[is.na(agekat), agekat := nrow(dkaTab) * 2] #gir høyeste tall så det ligger altid nedest
-setorder(dkaTab, agekat) #reorder rows
+## ## lokalDT[, str(.SD), .SDcols = valgVar]
 
-## Justeringer
-dkaTab[, agekat := NULL]
-setcolorder(dkaTab, c(&quot;agecat&quot;, &quot;ja&quot;, &quot;pros&quot;, &quot;N&quot;))
-setnames(dkaTab, names(dkaTab), c(&quot;Alder kategorier&quot;, &quot;Antall&quot;, &quot;Andel&quot;, &quot;N&quot;))
+## ## Ny liste for valgte variabel inkludert sykannet
+## undVar &lt;- c(valgVar, &quot;sykannet&quot;)
 
-## Tabell
-dkaTabell &lt;- tabFun(dkaTab, &quot;Har hatt ketoacidose&quot;, total = TRUE)
+
+## Antall som ikke er missing
+undVarNon &lt;- lokalDT[, lapply(.SD, function(x) sum(!is.na(x))), .SDcols = undVar]
+undNonLg &lt;- melt(undVarNon,
+  measure.vars = undVar,
+  variable.name = &quot;var&quot;,
+  value.name = &quot;n&quot;)
+
+## ## For annen sykedommer så skal andelen sammenligne mot total pasienter
+## antallAlle &lt;- as.integer(nrow(lokalDT))
+## ## attr(undNonLg$var, &quot;ATT&quot;) &lt;- NULL
+## undNonLg[, var := as.character(var, stringAsFactor = FALSE)] #convert factor to string
+## undNonLg[var %like% &quot;sykannet&quot;, n  := .(antallAlle)]
+
+## Antal som svarte Ja
+mList &lt;- list()
+
+for (i in undVar){
+  misInd &lt;- lokalDT[get(i)==&quot;Ja&quot;, .N]
+  mList[[i]] &lt;- misInd
+}
+
+undVarTall &lt;- as.data.table(mList)
+
+undVarLg &lt;- melt(undVarTall,
+  measure.vars = undVar,
+  variable.name = &quot;var&quot;,
+  value.name = &quot;ja&quot;)
+
+## Merge table
+undAll &lt;- merge(undVarLg, undNonLg, by = &quot;var&quot;)
+
+## Prosent
+undAll[, pros := round(ja / n * 100, digits = 1)]
+
+## Pyntting til tabellen
+undAll[, id := .I]
+
+nyNavn &lt;- c(
+  &quot;Cøliaki&quot;,
+  &quot;Hypothyreose&quot;,
+  &quot;Hyperthyreose&quot;,
+  &quot;ADHD&quot;,
+  &quot;Down syndrom&quot;,
+  &quot;Epilepsi&quot;,
+  &quot;Cystisk fibrose&quot;
+  )
+
+undAll[.(id = 1:8, to = nyNavn), on = &quot;id&quot;, navn := i.to]
+</code></pre>
+
+<pre><code>## Warning in as.data.table.list(i): Item 2 is of size 7 but maximum size is 8
+## (recycled leaving a remainder of 1 items)
+</code></pre>
+
+<pre><code class="r">## Beholder 1 decimal selv om 0
+undAll[, pro := as.character(sprintf(&quot;%0.1f&quot;, pros))]
+## Hvis 0 så blir bare strek
+undAll[pros == 0, pro := &quot;- &quot;]
+## Bort ubrukte kollone
+undAll[, c(&quot;var&quot;, &quot;pros&quot;, &quot;id&quot;) := NULL]
+## Reorder
+setcolorder(undAll, c(&quot;navn&quot;, &quot;ja&quot;, &quot;pro&quot;, &quot;n&quot;))
+
+
+setnames(undAll, names(undAll),
+  c(&quot; &quot;, &quot;Antall&quot;, &quot;Andel&quot;, &quot;N&quot;))
+
+
+## ## Tabell hux
+## lastLine &lt;- dim(undAll)[1] + 1
+
+## und.htab &lt;- as_hux(undAll, add_colnames = TRUE)
+
+## und.htab &lt;- und.htab %&gt;%
+##   ## set_bottom_border(1,, TRUE) %&gt;%
+##   set_bold(1,, TRUE) %&gt;%
+##   set_bottom_border(lastLine,, TRUE) %&gt;%
+##   map_background_color(by_rows(&quot;grey95&quot;, &quot;white&quot;)) %&gt;%
+##   set_position(&quot;left&quot;) %&gt;%
+##   set_align(, 3, &quot;right&quot;) %&gt;%
+##   set_latex_float(&quot;h!&quot;)
+
+## col_width(und.htab) &lt;- c(.5, .15, .15, .2)
+## width(und.htab) &lt;- 0.5
+## wrap(und.htab) &lt;- TRUE
+
+## und.htab &lt;- rbind(c(&quot;&quot;, &quot;Sykdommer&quot;, &quot;&quot;, &quot;&quot;), und.htab)
+
+## und.htab &lt;- merge_cells(und.htab, 1, 2:3)
+## align(und.htab)[1, 2] &lt;- &quot;center&quot;
+## bottom_border(und.htab)[1, 2] &lt;- 0.5
+## bottom_border(und.htab)[2, ] &lt;- TRUE
+
+
+outTab &lt;- tabFun(undAll, &quot;Sykdommer&quot;, rap = TRUE)
 </code></pre>
 
 </body>

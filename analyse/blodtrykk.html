@@ -201,34 +201,52 @@ hr {
 </head>
 
 <body>
-<pre><code class="r">## Diabetes ketoacidose (DKA)
+<pre><code class="r">## Blodtrykk
+## Etter at dataene koblet. Se koder i filen bloodtrykkCovert.R i analayse_alldt folder
 
-## Datakilde
-lokalDT &lt;- lok2018dt1
+## datakilde
+valgDT &lt;- lok2018dt1
 
-## Aggrigerer
-dkaTab &lt;- groupingsets(lokalDT,
-  j = .(N = sum(!is.na(und_ketoacidose)),
-       ja = length(which(und_ketoacidose == &quot;Ja&quot;))),
-  by = c(&quot;agecat&quot;, &quot;agekat&quot;),
-  sets = list(c(&quot;agecat&quot;, &quot;agekat&quot;), character(0))
-)
+## &#39;elevated&#39; er bp mellom 90 og 94 percentil
+## &#39;stage&#39; begge 1 og 2 betyr bp mer eller lik 95 percentil
 
-dkaTab[, pros := as.character(round(ja / N * 100, digits = 1))]
-dkaTab[ja == 0, pros := &quot;- &quot;]
-dkaTab[is.na(agecat), agecat := &quot;Totalt&quot;]
+## normal
+## bp90 &lt;- valgDT[stage == &quot;normal&quot;, .(var = 0, n = .N)]
 
-## lager id til sortering
-dkaTab[is.na(agekat), agekat := nrow(dkaTab) * 2] #gir høyeste tall så det ligger altid nedest
-setorder(dkaTab, agekat) #reorder rows
+## elevated
+bp94 &lt;- valgDT[stage == &quot;elevated&quot;, .(var = 1, n = .N)]
 
-## Justeringer
-dkaTab[, agekat := NULL]
-setcolorder(dkaTab, c(&quot;agecat&quot;, &quot;ja&quot;, &quot;pros&quot;, &quot;N&quot;))
-setnames(dkaTab, names(dkaTab), c(&quot;Alder kategorier&quot;, &quot;Antall&quot;, &quot;Andel&quot;, &quot;N&quot;))
+## stage
+bp95 &lt;- valgDT[stage  %in% c(&quot;stage1&quot;, &quot;stage2&quot;), .(var = 2, n = .N)]
+
+## merge
+bpTab &lt;- rbind(bp94, bp95)
 
 ## Tabell
-dkaTabell &lt;- tabFun(dkaTab, &quot;Har hatt ketoacidose&quot;, total = TRUE)
+## Eksluderer alle under 2 år
+## antall uten manglende informasjon for å beregne blodtrykk
+pbValid &lt;- valgDT[alder &gt; 1.999 &amp; !is.na(stage), .N]
+
+bpTab[, tot := pbValid]
+bpTab[, pros := round(n / tot * 100, digits = 1)]
+
+bpNavn &lt;- c(&quot;90-94 persentil&quot;, &quot;&gt;= 95 persentil&quot;)
+
+bpTab[.(var = 1:2, to = bpNavn), on = &quot;var&quot;, bt := i.to]
+bpTab[, c(&quot;var&quot;, &quot;tot&quot;) := NULL]
+setcolorder(bpTab, c(&quot;bt&quot;,&quot;n&quot;, &quot;pros&quot;))
+setnames(bpTab, names(bpTab), c(&quot;Blodtrykk&quot;, &quot;Antall&quot;, &quot;Andel&quot;))
+
+## Huxtabel
+lastLine &lt;- nrow(bpTab) + 1
+bp.htab &lt;- as_hux(bpTab, add_colnames = TRUE)
+
+bp.htab &lt;- bp.htab %&gt;%
+  set_bold(1,, TRUE) %&gt;%
+  set_bottom_border(1,, TRUE) %&gt;%
+  set_bottom_border(lastLine,, TRUE) %&gt;%
+  set_position(&quot;left&quot;) %&gt;%
+  map_background_color(by_rows(&quot;grey95&quot;, &quot;white&quot;))
 </code></pre>
 
 </body>

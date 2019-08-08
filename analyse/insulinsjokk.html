@@ -201,34 +201,37 @@ hr {
 </head>
 
 <body>
-<pre><code class="r">## Diabetes ketoacidose (DKA)
+<pre><code class="r">## Insulinsjokk med kramper og eller bevisstløshet
 
 ## Datakilde
 lokalDT &lt;- lok2018dt1
 
+## lokalDT[, .N, by = und_inssjokk]
+
 ## Aggrigerer
-dkaTab &lt;- groupingsets(lokalDT,
-  j = .(N = sum(!is.na(und_ketoacidose)),
-       ja = length(which(und_ketoacidose == &quot;Ja&quot;))),
+insjTab &lt;- groupingsets(lokalDT,
+  j = .(N = sum(!is.na(und_inssjokk)),
+       ja = length(which(und_inssjokk == &quot;Ja&quot;))),
   by = c(&quot;agecat&quot;, &quot;agekat&quot;),
   sets = list(c(&quot;agecat&quot;, &quot;agekat&quot;), character(0))
 )
 
-dkaTab[, pros := as.character(round(ja / N * 100, digits = 1))]
-dkaTab[ja == 0, pros := &quot;- &quot;]
-dkaTab[is.na(agecat), agecat := &quot;Totalt&quot;]
+insjTab[, pros := as.character(round(ja / N * 100, digits = 1))]
+insjTab[ja == 0, pros := &quot;- &quot;]
+insjTab[is.na(agecat), agecat := &quot;Totalt&quot;]
 
 ## lager id til sortering
-dkaTab[is.na(agekat), agekat := nrow(dkaTab) * 2] #gir høyeste tall så det ligger altid nedest
-setorder(dkaTab, agekat) #reorder rows
+## insjTab[, id := .I]
+insjTab[is.na(agekat), agekat := nrow(insjTab) * 2] #for å sikre det høyeste tall så ligger nedest
+setorder(insjTab, agekat) #reorder rows
 
 ## Justeringer
-dkaTab[, agekat := NULL]
-setcolorder(dkaTab, c(&quot;agecat&quot;, &quot;ja&quot;, &quot;pros&quot;, &quot;N&quot;))
-setnames(dkaTab, names(dkaTab), c(&quot;Alder kategorier&quot;, &quot;Antall&quot;, &quot;Andel&quot;, &quot;N&quot;))
+insjTab[, agekat := NULL]
+setcolorder(insjTab, c(&quot;agecat&quot;, &quot;ja&quot;, &quot;pros&quot;, &quot;N&quot;))
+setnames(insjTab, names(insjTab), c(&quot;Alder kategorier&quot;, &quot;Antall&quot;, &quot;Andel&quot;, &quot;N&quot;))
 
 ## Tabell
-dkaTabell &lt;- tabFun(dkaTab, &quot;Har hatt ketoacidose&quot;, total = TRUE)
+insjTabell &lt;- tabFun(insjTab, &quot;Har hatt insulinsjokk&quot;, total = TRUE)
 </code></pre>
 
 </body>

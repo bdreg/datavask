@@ -201,34 +201,87 @@ hr {
 </head>
 
 <body>
-<pre><code class="r">## Diabetes ketoacidose (DKA)
+<pre><code class="r">## Tabell 7 - Lipider
+</code></pre>
 
-## Datakilde
-lokalDT &lt;- lok2018dt1
+<pre><code class="r">## Kilderdata
+dt &lt;- lok2018dt1
 
-## Aggrigerer
-dkaTab &lt;- groupingsets(lokalDT,
-  j = .(N = sum(!is.na(und_ketoacidose)),
-       ja = length(which(und_ketoacidose == &quot;Ja&quot;))),
-  by = c(&quot;agecat&quot;, &quot;agekat&quot;),
-  sets = list(c(&quot;agecat&quot;, &quot;agekat&quot;), character(0))
-)
+## Total kolesterol. Bruk ikke fastende, hvis missing bruk fastende
+dt[, tkl2 := lab_lip_totkol_2] %&gt;%
+  .[is.na(lab_lip_totkol_2), tkl2  := lab_lip_totkol]
 
-dkaTab[, pros := as.character(round(ja / N * 100, digits = 1))]
-dkaTab[ja == 0, pros := &quot;- &quot;]
-dkaTab[is.na(agecat), agecat := &quot;Totalt&quot;]
+## HDL
+dt[, hdl2 := lab_lip_HDL_2] %&gt;%
+  .[is.na(lab_lip_HDL_2), hdl2 := lab_lip_HDL]
 
-## lager id til sortering
-dkaTab[is.na(agekat), agekat := nrow(dkaTab) * 2] #gir høyeste tall så det ligger altid nedest
-setorder(dkaTab, agekat) #reorder rows
+## LDL
+dt[, ldl2 := lab_lip_LDL_2] %&gt;%
+  .[is.na(lab_lip_LDL_2), ldl2 := lab_lip_LDL]
 
-## Justeringer
-dkaTab[, agekat := NULL]
-setcolorder(dkaTab, c(&quot;agecat&quot;, &quot;ja&quot;, &quot;pros&quot;, &quot;N&quot;))
-setnames(dkaTab, names(dkaTab), c(&quot;Alder kategorier&quot;, &quot;Antall&quot;, &quot;Andel&quot;, &quot;N&quot;))
+## Triglyserider
+dt[, trig2 := lab_lip_trig_2] %&gt;%
+  .[is.na(lab_lip_trig_2), trig2 := lab_lip_trig]
 
-## Tabell
-dkaTabell &lt;- tabFun(dkaTab, &quot;Har hatt ketoacidose&quot;, total = TRUE)
+
+lipTab &lt;- data.table::cube(dt, j = .(tkl = length(which(tkl2 &gt;= 5)),
+  hdl = length(which(hdl2 &lt; 1)),
+  ldl = length(which(ldl2 &gt;= 2.6000)),
+  ldl02 = length(which(ldl2 &gt; 3)),
+  trig = length(which(trig2 &gt; 2.5))),
+  by = &quot;Kjonn&quot;)
+
+## Total non mising
+lipVar &lt;- c(&quot;tkl2&quot;, &quot;hdl2&quot;, &quot;ldl2&quot;, &quot;trig2&quot;)
+lipTot &lt;- dt[, lapply(.SD, function(x) sum(!is.na(x))), .SDcols = lipVar]
+
+## legger til Total
+lipTab[, `:=`(tklN = lipTot$tkl2,
+  hdlN = lipTot$hdl2,
+  ldlN = lipTot$ldl2,
+  trigN = lipTot$trig2)]
+
+## Prosent
+lipTab[, `:=`(tkl_P_ = tkl / tklN * 100,
+  hdl_P_ = hdl / hdlN * 100,
+  ldl_P_ = ldl / ldlN * 100,
+  ldl02_P_ = ldl02 / ldlN * 100,
+  trig_P_ = trig / trigN * 100)]
+
+lipVar2 &lt;- grep(&quot;_P_$&quot;, names(lipTab), value = TRUE)
+lipTab[, (lipVar2) := round(.SD, digits = 1), .SDcols = lipVar2]
+
+## sortere rad hvor Gutter er første rader som alle andre tabeller i dokumenten
+lipTab &lt;- lipTab[order(Kjonn, na.last = TRUE)]
+lipTab[is.na(Kjonn), Kjonn  := &quot;Totalt&quot;]
+lipTab[.(Kjonn = c(&quot;Gutt&quot;, &quot;Jente&quot;), to = c(&quot;Gutter&quot;, &quot;Jenter&quot;)), on = &quot;Kjonn&quot;, Kjonn := i.to]
+
+## ubrukte variabler
+lipVarbort &lt;- grep(&quot;N$&quot;, names(lipTab), value = TRUE)
+valgTab &lt;- lipTab[, -..lipVarbort] #tar bort dem
+
+## kombinere prosent og beholder 0 decimal
+valgTab[, `:=`(tklF = sprintf(&quot;%s (%0.1f %%)&quot;, tkl, tkl_P_),
+  hdlF = sprintf(&quot;%s (%0.1f %%)&quot;, hdl, hdl_P_),
+  ldlF = sprintf(&quot;%s (%0.1f %%)&quot;, ldl, ldl_P_),
+  ldl02F = sprintf(&quot;%s (%0.1f %%)&quot;, ldl02, ldl02_P_),
+  trigF = sprintf(&quot;%s (%0.1f %%)&quot;, trig, trig_P_))]
+
+
+## Bytt 0 i antall til &quot;-&quot;
+valgTab[tkl == 0, tklF := &quot; -  &quot;]
+valgTab[hdl == 0, hdlF := &quot; -  &quot;]
+valgTab[ldl == 0, ldlF := &quot; -  &quot;]
+valgTab[ldl02 == 0, ldl02F := &quot; -  &quot;]
+valgTab[trig == 0, trigF := &quot; -  &quot;]
+
+## valg variabler for tabell
+lipVarTab &lt;- grep(&quot;F$&quot;, names(valgTab), value = TRUE)
+lipTabell &lt;- valgTab[, c(&quot;Kjonn&quot;, lipVarTab), with = F]
+
+## Gir ny colnames
+tabNavn &lt;- c(&quot; &quot;, &quot;Total kol.&quot;, &quot;HDL&quot;, &quot;LDL 2&quot;, &quot;LDL 3&quot;, &quot;Triglycerider&quot;)
+setnames(lipTabell, names(lipTabell), tabNavn)
 </code></pre>
 
 </body>

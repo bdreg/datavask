@@ -201,34 +201,125 @@ hr {
 </head>
 
 <body>
-<pre><code class="r">## Diabetes ketoacidose (DKA)
+<pre><code class="r">## Type diabetes
+</code></pre>
 
-## Datakilde
-lokalDT &lt;- lok2018dt1
+<pre><code class="r">diaTabell &lt;- function(x){
 
-## Aggrigerer
-dkaTab &lt;- groupingsets(lokalDT,
-  j = .(N = sum(!is.na(und_ketoacidose)),
-       ja = length(which(und_ketoacidose == &quot;Ja&quot;))),
-  by = c(&quot;agecat&quot;, &quot;agekat&quot;),
-  sets = list(c(&quot;agecat&quot;, &quot;agekat&quot;), character(0))
-)
+  ## Demografisk variabler
+  demoVar &lt;-  c(&quot;PasientID&quot;, &quot;Pnr&quot;, &quot;hospital&quot;, &quot;hospID&quot;, &quot;hosKort&quot;, &quot;alder&quot;, &quot;Kjonn&quot;, &quot;diagVar&quot;, &quot;diagAlder&quot;)
 
-dkaTab[, pros := as.character(round(ja / N * 100, digits = 1))]
-dkaTab[ja == 0, pros := &quot;- &quot;]
-dkaTab[is.na(agecat), agecat := &quot;Totalt&quot;]
+  ## diabetes variabler
+  diabetesVar = c(&quot;diabetes_Type1&quot;, &quot;diabetes_Type2&quot;, &quot;diabetes_Mody&quot;, &quot;diabetes_Kir62&quot;, &quot;diabetes_SekDiabetes&quot;, &quot;diabetes_AnnenDiabetes&quot;, &quot;diabetes_UkjentDiabetes&quot;)
 
-## lager id til sortering
-dkaTab[is.na(agekat), agekat := nrow(dkaTab) * 2] #gir høyeste tall så det ligger altid nedest
-setorder(dkaTab, agekat) #reorder rows
+  ## lage subset
+  diabDT &lt;- x[, c(demoVar, diabetesVar), with = F]
 
-## Justeringer
-dkaTab[, agekat := NULL]
-setcolorder(dkaTab, c(&quot;agecat&quot;, &quot;ja&quot;, &quot;pros&quot;, &quot;N&quot;))
-setnames(dkaTab, names(dkaTab), c(&quot;Alder kategorier&quot;, &quot;Antall&quot;, &quot;Andel&quot;, &quot;N&quot;))
+  ## --- Pasienter uten diagnoser ----
+  diabDTx &lt;- copy(diabDT)
+  diabDTx[, (diabetesVar) := lapply(.SD, function(x) ifelse(x == &quot;Ja&quot;, 1, 0)), .SDcols = diabetesVar]
 
-## Tabell
-dkaTabell &lt;- tabFun(dkaTab, &quot;Har hatt ketoacidose&quot;, total = TRUE)
+  diabDTx[, diaSum := sum(.SD, na.rm = TRUE), .SDcols = diabetesVar, by = Pnr]
+
+  ## diabDTx[diaSum == 0, .(Pnr, hosKort)]
+
+
+
+  ## Lage en long dataset
+  diabLg &lt;- melt(data = diabDT, 
+                 id.vars = demoVar,
+                 measure.vars = diabetesVar,
+                 variable.name = &quot;diabType&quot;,
+                 value.name = &quot;janei&quot;)
+
+
+  ## Omkode diabetes type til tall fra 1 til 7
+  diabLg[.(janei = &quot;Ja&quot;, diabType = diabetesVar, to = 1:7), on = c(&quot;janei&quot;, &quot;diabType&quot;), dbt := i.to]
+
+  ## Beholder bare de som svarte Ja
+  diabJa &lt;-  diabLg[janei == &quot;Ja&quot;, ]
+
+  ## rekode annen type diabetes
+  ## 1 = DT1, 2 = DT2, 3 = Mody, 4 = Annen type
+  diabJa[, dbtype := dbt][dbt &gt; 3, dbtype := 4]
+
+
+
+  ## Tabell
+  ## -------
+  ## Tabell mal
+  tabMal &lt;- data.table(dbtype = rep(1:4, each = 2), Kjonn = rep(c(&quot;Gutt&quot;, &quot;Jente&quot;), 2))
+
+  ## tabell diabetes
+  tabDiaHosp &lt;- diabJa[, .N, by=.(dbtype, Kjonn)]
+
+  ## sjekk hvis det er 0 i antall pasient ved å sammenlikne sykehus tabell mot tabell malen
+  diaUt &lt;- tabDiaHosp[, .(dbtype, Kjonn)]
+
+  # tabell for rad som er forskjellige fra tabell malen
+  # tabDiff &lt;-  sqldf::sqldf(&#39;SELECT * FROM tabMal EXCEPT SELECT * FROM diaUt&#39;)
+  tabDiff &lt;- data.table::fsetdiff(tabMal, diaUt)
+  radN &lt;- dim(tabDiff)[1]
+
+  # Final tabell 
+  if (radN &gt; 0) {
+
+    tabDiff[, N := 0]
+    tabDia &lt;- rbindlist(list(tabDiaHosp, tabDiff))
+
+  } else {
+
+    tabDia = tabDiaHosp
+
+  }
+
+
+  ## Snu til wide
+  tabWd &lt;- dcast(tabDia, Kjonn ~ dbtype, value.var = &quot;N&quot;)
+
+  ## Legger Totalen
+  tabTot &lt;- tabWd[, lapply(.SD, function(x) sum(x, na.rm = T)), .SDcols = names(tabWd)[-1]]
+  tabTot[, Kjonn := &quot;Totalt&quot;]
+
+  ## legge alle i en tabell
+  diab.tab &lt;- rbindlist(list(tabWd, tabTot), use.names = TRUE)
+
+  diab.tab[.(Kjonn = c(&quot;Gutt&quot;, &quot;Jente&quot;), to = c(&quot;Gutter&quot;, &quot;Jenter&quot;)), on = &quot;Kjonn&quot;, Kjonn := i.to]
+
+  ## legge kolonnavn til tabellen
+  tabNavn &lt;-c(&quot; &quot;, &quot;T1D&quot;, &quot;T2D&quot;, &quot;MODY&quot;, &quot;Annen&quot;)
+  setnames(diab.tab, names(diab.tab), tabNavn)
+
+  ## Antall pasienter
+  diab.n &lt;- dim(diabJa)[1]
+
+  utData &lt;- list(diab.tab = diab.tab, diab.n = diab.n)
+
+  return(invisible(utData))
+
+}
+
+
+## Lokal sykehus
+utLocal &lt;- diaTabell(lokal2018)
+diab.lokal &lt;- utLocal[[&quot;diab.tab&quot;]][]
+antall.lokal &lt;- utLocal[[&quot;diab.n&quot;]]
+
+
+
+## Legger Nasjonale tall
+utNasj &lt;- diaTabell(ars2018)
+diab.nasj &lt;- utNasj[[&quot;diab.tab&quot;]][]
+antall.nasj &lt;- utNasj[[&quot;diab.n&quot;]]
+# 
+# knitr::kable(
+#   list(
+#     diab.lokal,
+#     diab.nasj
+#   ),
+#   caption = &#39;Diabetes Type&#39;,
+#   booktabs = TRUE
+# )
 </code></pre>
 
 </body>
